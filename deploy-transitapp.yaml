@@ -1,0 +1,103 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name:  transitapp
+spec:
+  selector:
+    app:  transitapp
+  type:  ClusterIP
+  ports:
+  - name:  http
+    port:  5000
+    targetPort:  5000
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name:  transitapp
+
+---  
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transitapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: transitapp
+  template:
+    metadata:
+      labels:
+        app: transitapp
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-init-first: "true"
+        vault.hashicorp.com/role: "transitapp"
+        vault.hashicorp.com/agent-inject-token: "true"
+        vault.hashicorp.com/agent-cache-enable: "true"
+#         vault.hashicorp.com/agent-cache-use-auto-auth-token: "true"
+#         vault.hashicorp.com/agent-inject-secret-creds: "secret/data/transitapp/config"
+        vault.hashicorp.com/agent-inject-secret-mycert.txt: ""
+        vault.hashicorp.com/secret-volume-path-mycert.txt: "/config/cert"
+        vault.hashicorp.com/agent-inject-template-mycert.txt: |
+          {{- with secret "pki/issue/websiterole" "common_name=www.website.com" -}}
+          {{ .Data }}
+          {{- end }}
+        vault.hashicorp.com/agent-inject-secret-ca.pem: ""
+        vault.hashicorp.com/secret-volume-path-ca.pem: "/app/config/cert"
+        vault.hashicorp.com/agent-inject-template-ca.pem: |
+          {{- with secret "pki/issue/websiterole" "common_name=host.www.website.com" -}}
+          {{ .Data.issuing_ca }}
+          {{- end }} 
+        vault.hashicorp.com/agent-inject-secret-key.pem: ""
+        vault.hashicorp.com/secret-volume-path-key.pem: "/app/config/cert"
+        vault.hashicorp.com/agent-inject-template-key.pem: |
+          {{- with secret "pki/issue/websiterole" "common_name=host.www.website.com" -}}
+          {{ .Data.private_key }}
+          {{- end }} 
+        vault.hashicorp.com/agent-inject-secret-cert.pem: ""
+        vault.hashicorp.com/secret-volume-path-cert.pem: "/app/config/cert"
+        vault.hashicorp.com/agent-inject-template-cert.pem: |
+          {{- with secret "pki/issue/websiterole" "common_name=host.www.website.com" -}}
+          {{ .Data.certificate }}
+          {{- end }}
+        vault.hashicorp.com/agent-inject-secret-config.ini: ""
+        vault.hashicorp.com/secret-volume-path-config.ini: "/app/config"
+        vault.hashicorp.com/agent-inject-template-config.ini: |
+          {{- with secret "lob_a/workshop/database/creds/workshop-app" -}}
+          [DEFAULT]
+          LogLevel = DEBUG
+
+          [DATABASE]
+          Address = mysql
+          Port = 3306
+          User = {{ .Data.username }}
+          Password = {{ .Data.password }}
+          Database = my_app
+
+          [VAULT]
+          Enabled = true
+          DynamicDBCreds = true
+          DynamicDBCredsPath = lob_a/workshop/database/creds/workshop-app
+          ProtectRecords = True
+          Address = http://localhost:8200
+          Token = 
+          Namespace = root
+          KeyPath = lob_a/workshop/transit
+          KeyName = customer-key
+          Transform = false
+          TransformPath = lob_a/workshop/transform
+          SSNRole = ssn
+          {{- end }}
+          
+    spec:
+      serviceAccountName: transitapp
+      containers:
+      - name: transitapp
+        image: moism/transitapp:1.0
+        imagePullPolicy: Always
+#         command: ["sleep", "infinity"]

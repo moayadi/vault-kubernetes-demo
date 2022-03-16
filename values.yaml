@@ -1,0 +1,15 @@
+# config.yaml
+server:
+  image:
+    repository: hashicorp/vault
+    tag: 1.9.2
+  dev:
+    enabled: true
+    devRootToken: "root"
+
+ui:
+  enabled: true
+  activeVaultPodOnly: false
+  serviceType: "NodePort"
+  externalPort: 8200
+  targetPort: 8200
